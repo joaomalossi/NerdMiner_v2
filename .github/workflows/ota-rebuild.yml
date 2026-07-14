@@ -1,0 +1,82 @@
+name: Rebuild com patch OTA a partir do upstream
+
+on:
+  schedule:
+    - cron: "0 */6 * * *" # checa a cada 6 horas
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout deste fork (patch + scripts)
+        uses: actions/checkout@v4
+        with:
+          path: this-repo
+
+      - name: Descobrir tag da release mais recente do upstream
+        id: upstream
+        run: |
+          TAG=$(curl -sL \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/BitMaker-hub/NerdMiner_v2/releases/latest \
+            | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/')
+          if [ -z "$TAG" ]; then
+            echo "Nao foi possivel obter a tag_name do upstream" >&2
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Upstream latest: $TAG"
+
+      - name: Checar se ja existe release com essa tag neste fork
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${{ steps.upstream.outputs.tag }}" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Clonar upstream na tag mais recente
+        if: steps.check.outputs.exists == 'false'
+        run: |
+          git clone --branch "${{ steps.upstream.outputs.tag }}" --depth 1 \
+            https://github.com/BitMaker-hub/NerdMiner_v2.git upstream-src
+
+      - name: Aplicar patch de OTA
+        if: steps.check.outputs.exists == 'false'
+        run: python3 this-repo/scripts/apply_ota_patch.py upstream-src this-repo
+
+      - name: Instalar PlatformIO
+        if: steps.check.outputs.exists == 'false'
+        run: pip install platformio
+
+      - name: Compilar firmware (ESP32-devKitv1)
+        if: steps.check.outputs.exists == 'false'
+        working-directory: upstream-src
+        run: pio run -e ESP32-devKitv1
+
+      - name: Publicar release neste fork
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BIN="upstream-src/firmware/dev/ESP32-devKitv1_firmware.bin"
+          if [ ! -f "$BIN" ]; then
+            BIN="upstream-src/.pio/build/ESP32-devKitv1/firmware.bin"
+          fi
+          if [ ! -f "$BIN" ]; then
+            echo "Binario compilado nao encontrado" >&2
+            exit 1
+          fi
+          cp "$BIN" ./ESP32-devKitv1_firmware.bin
+          gh release create "${{ steps.upstream.outputs.tag }}" \
+            ./ESP32-devKitv1_firmware.bin \
+            --repo "${{ github.repository }}" \
+            --title "${{ steps.upstream.outputs.tag }} (com patch de auto-update)" \
+            --notes "Build automatico a partir de BitMaker-hub/NerdMiner_v2@${{ steps.upstream.outputs.tag }}, com o patch de self-OTA aplicado (scripts/apply_ota_patch.py)."

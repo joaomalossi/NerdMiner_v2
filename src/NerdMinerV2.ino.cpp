@@ -11,6 +11,7 @@
 #include "wManager.h"
 #include "mining.h"
 #include "monitor.h"
+#include "otaUpdater.h"
 #include "drivers/displays/display.h"
 #include "drivers/storage/SDCard.h"
 #include "ShaTests/nerdSHA_HWTest.h"
@@ -188,6 +189,9 @@ void setup()
 
   /******** MONITOR SETUP *****/
   setup_monitor();
+
+  /******** OTA AUTO-UPDATE SETUP *****/
+  setup_ota_updater();
 }
 
 void app_error_fault_handler(void *arg) {
