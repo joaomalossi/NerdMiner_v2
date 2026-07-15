@@ -1,0 +1,123 @@
+diff --git a/src/stratum.cpp b/src/stratum.cpp
+index 49c2422..8b6cd91 100644
+--- a/src/stratum.cpp
++++ b/src/stratum.cpp
+@@ -33,7 +33,7 @@ bool verifyPayload (String* line){
+   
+ }
+ 
+-bool checkError(const StaticJsonDocument<BUFFER_JSON_DOC> doc) {
++bool checkError(const StaticJsonDocument<BUFFER_JSON_DOC>& doc) {
+   
+   if (!doc.containsKey("error")) return false;
+   
+@@ -205,7 +205,7 @@ bool parse_mining_notify(String line, mining_job& mJob)
+ }
+ 
+ 
+-bool tx_mining_submit(WiFiClient& client, mining_subscribe mWorker, mining_job mJob, unsigned long nonce, unsigned long &submit_id)
++bool tx_mining_submit(WiFiClient& client, mining_subscribe& mWorker, mining_job& mJob, unsigned long nonce, unsigned long &submit_id)
+ {
+     char payload[BUFFER] = {0};
+ 
+diff --git a/src/stratum.h b/src/stratum.h
+index 7012bcf..a2081fb 100644
+--- a/src/stratum.h
++++ b/src/stratum.h
+@@ -12,7 +12,10 @@
+ #define COINBASE_SIZE 100
+ #define COINBASE2_SIZE 128
+ 
+-#define BUFFER_JSON_DOC 4096
++// Must hold a full mining.notify: PPLNS pools (public-pool.io:13333) send ~14KB
++// notifies (coinbase pays every participant); 4096 made them fail silently as
++// STRATUM_PARSE_ERROR (NoMemory) and the miner never got a job.
++#define BUFFER_JSON_DOC 24576
+ #define BUFFER 1024
+ 
+ typedef struct {
+@@ -47,7 +50,7 @@ typedef enum {
+ 
+ unsigned long getNextId(unsigned long id);
+ bool verifyPayload (String* line);
+-bool checkError(const StaticJsonDocument<BUFFER_JSON_DOC> doc);
++bool checkError(const StaticJsonDocument<BUFFER_JSON_DOC>& doc);
+ 
+ //Method Mining.subscribe
+ mining_subscribe init_mining_subscribe(void);
+@@ -60,7 +63,7 @@ stratum_method parse_mining_method(String line);
+ bool parse_mining_notify(String line, mining_job& mJob);
+ 
+ //Method Mining.submit
+-bool tx_mining_submit(WiFiClient& client, mining_subscribe mWorker, mining_job mJob, unsigned long nonce, unsigned long &submit_id);
++bool tx_mining_submit(WiFiClient& client, mining_subscribe& mWorker, mining_job& mJob, unsigned long nonce, unsigned long &submit_id);
+ 
+ //Difficulty Methods 
+ bool tx_suggest_difficulty(WiFiClient& client, double difficulty);
+diff --git a/src/utils.cpp b/src/utils.cpp
+index 3120e8a..76f1bf0 100644
+--- a/src/utils.cpp
++++ b/src/utils.cpp
+@@ -186,7 +186,7 @@ miner_data init_miner_data(void){
+   return newMinerData;
+ }
+ 
+-miner_data calculateMiningData(mining_subscribe& mWorker, mining_job mJob){
++miner_data calculateMiningData(mining_subscribe& mWorker, mining_job& mJob){
+ 
+   miner_data mMiner = init_miner_data();
+ 
+@@ -227,14 +227,23 @@ miner_data calculateMiningData(mining_subscribe& mWorker, mining_job mJob){
+     //mWorker.extranonce2 = "00000002";
+     
+     //get coinbase - coinbase_hash_bin = hashlib.sha256(hashlib.sha256(binascii.unhexlify(coinbase)).digest()).digest()
+-    // Use char buffer instead of String concatenation to avoid memory leaks
+-    static char coinbase_buffer[512]; // Static buffer to avoid repeated allocation
+-    snprintf(coinbase_buffer, sizeof(coinbase_buffer), "%s%s%s%s", 
+-             mJob.coinb1.c_str(), mWorker.extranonce1.c_str(), 
++    // PPLNS pools (e.g. public-pool.io:13333) send coinbases of 10KB+ hex (one output
++    // per participant), so both buffers must be heap-allocated and sized from the job.
++    size_t coinbase_hex_len = mJob.coinb1.length() + mWorker.extranonce1.length()
++                            + mWorker.extranonce2.length() + mJob.coinb2.length();
++    char* coinbase_buffer = (char*) malloc(coinbase_hex_len + 1);
++    size_t str_len = coinbase_hex_len / 2;
++    uint8_t* bytearray = (uint8_t*) malloc(str_len);
++    if (coinbase_buffer == NULL || bytearray == NULL) {
++        Serial.printf("    ERROR: OOM allocating %u byte coinbase\n", (unsigned) coinbase_hex_len);
++        free(coinbase_buffer);
++        free(bytearray);
++        return mMiner;
++    }
++    snprintf(coinbase_buffer, coinbase_hex_len + 1, "%s%s%s%s",
++             mJob.coinb1.c_str(), mWorker.extranonce1.c_str(),
+              mWorker.extranonce2.c_str(), mJob.coinb2.c_str());
+-    Serial.print("    coinbase: "); Serial.println(coinbase_buffer);
+-    size_t str_len = strlen(coinbase_buffer)/2;
+-    uint8_t bytearray[str_len];
++    Serial.print("    coinbase hex chars: "); Serial.println(coinbase_hex_len);
+ 
+     size_t res = to_byte_array(coinbase_buffer, str_len*2, bytearray);
+ 
+@@ -262,6 +271,9 @@ miner_data calculateMiningData(mining_subscribe& mWorker, mining_job mJob){
+     mbedtls_sha256_finish_ret(&ctx, shaResult);
+     mbedtls_sha256_free(&ctx);
+ 
++    free(coinbase_buffer);
++    free(bytearray);
++
+     #ifdef DEBUG_MINING
+     Serial.print("    coinbase double sha: ");
+     for (size_t i = 0; i < 32; i++)
+diff --git a/src/utils.h b/src/utils.h
+index 467d35c..0ad1283 100644
+--- a/src/utils.h
++++ b/src/utils.h
+@@ -21,7 +21,7 @@ int to_byte_array(const char *in, size_t in_size, uint8_t *out);
+ double le256todouble(const void *target);
+ double diff_from_target(void *target);
+ bool isSha256Valid(const void* sha256);
+-miner_data calculateMiningData(mining_subscribe& mWorker, mining_job mJob);
++miner_data calculateMiningData(mining_subscribe& mWorker, mining_job& mJob);
+ bool checkValid(unsigned char* hash, unsigned char* target);
+ void suffix_string(double val, char *buf, size_t bufsiz, int sigdigits);
+ 

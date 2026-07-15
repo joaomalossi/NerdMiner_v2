@@ -33,7 +33,7 @@ bool verifyPayload (String* line){
   
 }
 
-bool checkError(const StaticJsonDocument<BUFFER_JSON_DOC> doc) {
+bool checkError(const StaticJsonDocument<BUFFER_JSON_DOC>& doc) {
   
   if (!doc.containsKey("error")) return false;
   
@@ -205,7 +205,7 @@ bool parse_mining_notify(String line, mining_job& mJob)
 }
 
 
-bool tx_mining_submit(WiFiClient& client, mining_subscribe mWorker, mining_job mJob, unsigned long nonce, unsigned long &submit_id)
+bool tx_mining_submit(WiFiClient& client, mining_subscribe& mWorker, mining_job& mJob, unsigned long nonce, unsigned long &submit_id)
 {
     char payload[BUFFER] = {0};
 

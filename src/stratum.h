@@ -12,7 +12,10 @@
 #define COINBASE_SIZE 100
 #define COINBASE2_SIZE 128
 
-#define BUFFER_JSON_DOC 4096
+// Must hold a full mining.notify: PPLNS pools (public-pool.io:13333) send ~14KB
+// notifies (coinbase pays every participant); 4096 made them fail silently as
+// STRATUM_PARSE_ERROR (NoMemory) and the miner never got a job.
+#define BUFFER_JSON_DOC 24576
 #define BUFFER 1024
 
 typedef struct {
@@ -47,7 +50,7 @@ typedef enum {
 
 unsigned long getNextId(unsigned long id);
 bool verifyPayload (String* line);
-bool checkError(const StaticJsonDocument<BUFFER_JSON_DOC> doc);
+bool checkError(const StaticJsonDocument<BUFFER_JSON_DOC>& doc);
 
 //Method Mining.subscribe
 mining_subscribe init_mining_subscribe(void);
@@ -60,7 +63,7 @@ stratum_method parse_mining_method(String line);
 bool parse_mining_notify(String line, mining_job& mJob);
 
 //Method Mining.submit
-bool tx_mining_submit(WiFiClient& client, mining_subscribe mWorker, mining_job mJob, unsigned long nonce, unsigned long &submit_id);
+bool tx_mining_submit(WiFiClient& client, mining_subscribe& mWorker, mining_job& mJob, unsigned long nonce, unsigned long &submit_id);
 
 //Difficulty Methods 
 bool tx_suggest_difficulty(WiFiClient& client, double difficulty);

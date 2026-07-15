@@ -186,7 +186,7 @@ miner_data init_miner_data(void){
   return newMinerData;
 }
 
-miner_data calculateMiningData(mining_subscribe& mWorker, mining_job mJob){
+miner_data calculateMiningData(mining_subscribe& mWorker, mining_job& mJob){
 
   miner_data mMiner = init_miner_data();
 
@@ -227,14 +227,23 @@ miner_data calculateMiningData(mining_subscribe& mWorker, mining_job mJob){
     //mWorker.extranonce2 = "00000002";
     
     //get coinbase - coinbase_hash_bin = hashlib.sha256(hashlib.sha256(binascii.unhexlify(coinbase)).digest()).digest()
-    // Use char buffer instead of String concatenation to avoid memory leaks
-    static char coinbase_buffer[512]; // Static buffer to avoid repeated allocation
-    snprintf(coinbase_buffer, sizeof(coinbase_buffer), "%s%s%s%s", 
-             mJob.coinb1.c_str(), mWorker.extranonce1.c_str(), 
+    // PPLNS pools (e.g. public-pool.io:13333) send coinbases of 10KB+ hex (one output
+    // per participant), so both buffers must be heap-allocated and sized from the job.
+    size_t coinbase_hex_len = mJob.coinb1.length() + mWorker.extranonce1.length()
+                            + mWorker.extranonce2.length() + mJob.coinb2.length();
+    char* coinbase_buffer = (char*) malloc(coinbase_hex_len + 1);
+    size_t str_len = coinbase_hex_len / 2;
+    uint8_t* bytearray = (uint8_t*) malloc(str_len);
+    if (coinbase_buffer == NULL || bytearray == NULL) {
+        Serial.printf("    ERROR: OOM allocating %u byte coinbase\n", (unsigned) coinbase_hex_len);
+        free(coinbase_buffer);
+        free(bytearray);
+        return mMiner;
+    }
+    snprintf(coinbase_buffer, coinbase_hex_len + 1, "%s%s%s%s",
+             mJob.coinb1.c_str(), mWorker.extranonce1.c_str(),
              mWorker.extranonce2.c_str(), mJob.coinb2.c_str());
-    Serial.print("    coinbase: "); Serial.println(coinbase_buffer);
-    size_t str_len = strlen(coinbase_buffer)/2;
-    uint8_t bytearray[str_len];
+    Serial.print("    coinbase hex chars: "); Serial.println(coinbase_hex_len);
 
     size_t res = to_byte_array(coinbase_buffer, str_len*2, bytearray);
 
@@ -261,6 +270,9 @@ miner_data calculateMiningData(mining_subscribe& mWorker, mining_job mJob){
     mbedtls_sha256_update_ret(&ctx, interResult, 32);
     mbedtls_sha256_finish_ret(&ctx, shaResult);
     mbedtls_sha256_free(&ctx);
+
+    free(coinbase_buffer);
+    free(bytearray);
 
     #ifdef DEBUG_MINING
     Serial.print("    coinbase double sha: ");
