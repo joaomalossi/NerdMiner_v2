@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NerdMiner Dashboard</title>
+<style>
+:root { --bg:#0d1117; --card:#161b22; --border:#30363d; --text:#e6edf3; --dim:#8b949e;
+        --ok:#3fb950; --bad:#f85149; --accent:#f0883e; }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:-apple-system,system-ui,sans-serif;
+       padding:24px; max-width:900px; margin:0 auto; }
+h1 { font-size:1.2rem; font-weight:600; margin-bottom:16px; }
+h1 span { color:var(--accent); }
+#cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; }
+.card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:18px; }
+.card.offline { opacity:.55; border-color:var(--bad); }
+.card h2 { font-size:.95rem; text-transform:uppercase; letter-spacing:.06em; display:flex;
+           align-items:center; gap:8px; margin-bottom:12px; }
+.dot { width:10px; height:10px; border-radius:50%; background:var(--bad); flex:none; }
+.card.online .dot { background:var(--ok); }
+.hr { font-size:2.1rem; font-weight:700; margin-bottom:2px; }
+.hr small { font-size:1rem; font-weight:400; color:var(--dim); }
+.offmsg { color:var(--bad); font-size:.9rem; margin:8px 0; display:none; }
+.card.offline .offmsg { display:block; }
+.grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 14px; margin-top:12px; font-size:.85rem; }
+.grid div { display:flex; justify-content:space-between; gap:8px; border-bottom:1px solid var(--border); padding:3px 0; }
+.grid span:first-child { color:var(--dim); }
+footer { margin-top:18px; color:var(--dim); font-size:.75rem; }
+</style>
+</head>
+<body>
+<h1><span>⛏</span> NerdMiner Dashboard</h1>
+<div id="cards"></div>
+<footer id="foot"></footer>
+<script>
+"use strict";
+const POLL_MS = 7000, TIMEOUT_MS = 3000;
+
+function fetchTimeout(url, ms) {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), ms);
+  return fetch(url, { signal: ctl.signal }).finally(() => clearTimeout(t));
+}
+
+function fmtUptime(s) {
+  const d = Math.floor(s/86400), h = Math.floor(s%86400/3600), m = Math.floor(s%3600/60);
+  return (d ? d+"d " : "") + h + "h " + m + "m";
+}
+
+function cardHtml(id) {
+  return `<div class="card" id="card-${id}">
+    <h2><span class="dot"></span><span class="title">${id}</span></h2>
+    <div class="hr"><span class="val">—</span> <small>KH/s</small></div>
+    <div class="offmsg">sem resposta — placa offline ou fora da rede</div>
+    <div class="grid">
+      <div><span>Shares</span><span data-f="shares">—</span></div>
+      <div><span>Best diff</span><span data-f="bestDiff">—</span></div>
+      <div><span>Templates</span><span data-f="templates">—</span></div>
+      <div><span>Uptime</span><span data-f="uptime">—</span></div>
+      <div><span>Pool</span><span data-f="pool">—</span></div>
+      <div><span>Firmware</span><span data-f="version">—</span></div>
+      <div><span>Wi-Fi</span><span data-f="rssi">—</span></div>
+      <div><span>Heap livre</span><span data-f="heap">—</span></div>
+      <div><span>Temp</span><span data-f="temp">—</span></div>
+    </div>
+  </div>`;
+}
+
+function renderStats(id, s) {
+  const c = document.getElementById("card-" + id);
+  c.classList.add("online"); c.classList.remove("offline");
+  c.querySelector(".title").textContent = s.mode.toUpperCase() + " · " + id;
+  c.querySelector(".hr .val").textContent = s.hashRateKHs.toFixed(1);
+  const f = (n, v) => c.querySelector(`[data-f="${n}"]`).textContent = v;
+  f("shares", s.shares);
+  f("bestDiff", s.bestDiff);
+  f("templates", s.templates);
+  f("uptime", fmtUptime(s.uptimeSeconds));
+  f("pool", s.pool + ":" + s.port);
+  f("version", s.version);
+  f("rssi", s.rssi + " dBm");
+  f("heap", Math.round(s.freeHeap/1024) + " KB");
+  f("temp", s.tempC.toFixed(0) + " °C");
+}
+
+function renderOffline(id) {
+  const c = document.getElementById("card-" + id);
+  c.classList.add("offline"); c.classList.remove("online");
+}
+
+const boards = [location.host];
+const cardsEl = document.getElementById("cards");
+boards.forEach(b => cardsEl.insertAdjacentHTML("beforeend", cardHtml(b)));
+
+async function poll() {
+  for (const b of boards) {
+    try {
+      const r = await fetchTimeout(`http://${b}/api/stats`, TIMEOUT_MS);
+      renderStats(b, await r.json());
+    } catch (e) { renderOffline(b); }
+  }
+  document.getElementById("foot").textContent = "atualizado " + new Date().toLocaleTimeString();
+}
+poll();
+setInterval(poll, POLL_MS);
+</script>
+</body>
+</html>

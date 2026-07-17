@@ -4,6 +4,7 @@
 #include <ESPmDNS.h>
 
 #include "dashboard_core.h"
+#include "dashboard_page.h"
 #include "dashboardServer.h"
 #include "../version.h"
 #include "../utils.h"
@@ -66,6 +67,12 @@ static void dashboardTask(void *pvParameters) {
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 
+    // Sem AAAA no ar, o getaddrinfo dual-stack do macOS espera 5s pelo registro
+    // IPv6 que nunca vem antes de devolver o A — habilitar IPv6 (link-local) faz
+    // o responder mDNS responder AAAA e mata a espera.
+    WiFi.enableIpV6();
+    vTaskDelay(2000 / portTICK_PERIOD_MS);
+
     const char *host = dashboard_hostname(Settings.PoolPort);
     if (MDNS.begin(host)) {
         MDNS.addService("http", "tcp", 80);
@@ -74,6 +81,11 @@ static void dashboardTask(void *pvParameters) {
         Serial.println("[DASH] Falha ao registrar mDNS (segue acessivel por IP)");
     }
 
+    s_server.on("/", HTTP_GET, []() {
+        s_server.sendHeader("Content-Encoding", "gzip");
+        s_server.send_P(200, "text/html", (const char *)DASHBOARD_PAGE_GZ,
+                        DASHBOARD_PAGE_GZ_LEN);
+    });
     s_server.on("/api/stats", HTTP_GET, handleStats);
     s_server.onNotFound([]() {
         s_server.sendHeader("Access-Control-Allow-Origin", "*");
