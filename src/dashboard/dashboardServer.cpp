@@ -100,6 +100,18 @@ static void dashboardTask(void *pvParameters) {
         s_server.sendHeader("Access-Control-Allow-Origin", "*");
         s_server.send(200, "application/json", history_json(s_history).c_str());
     });
+    // Restart só via POST: GET não pode ter efeito (prefetch/crawler na LAN).
+    s_server.on("/api/restart", HTTP_POST, []() {
+        s_server.sendHeader("Access-Control-Allow-Origin", "*");
+        s_server.send(200, "application/json", "{\"restarting\":true}");
+        s_server.client().flush();
+        vTaskDelay(300 / portTICK_PERIOD_MS);
+        ESP.restart();
+    });
+    s_server.on("/api/restart", HTTP_GET, []() {
+        s_server.sendHeader("Access-Control-Allow-Origin", "*");
+        s_server.send(405, "text/plain", "use POST");
+    });
     s_server.onNotFound([]() {
         s_server.sendHeader("Access-Control-Allow-Origin", "*");
         s_server.send(404, "text/plain", "not found");
