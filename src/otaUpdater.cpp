@@ -3,6 +3,7 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <Update.h>
+#include <esp_ota_ops.h>
 
 #include "version.h"
 #include "otaUpdater.h"
@@ -68,6 +69,17 @@ static bool fetchLatestTag(String &tagOut) {
 // Sem particao OTA dupla nesta board: uma queda de energia/wifi no meio da gravacao
 // pode deixar o dispositivo sem bootar, exigindo reflash via USB.
 static bool downloadAndFlash(const String &url) {
+  // Guarda anti-loop: em tabela single-app (ex: huge_app.csv) o "proximo" slot
+  // de OTA e a propria particao em execucao - gravar nela crasha o chip e
+  // reinicia, criando um loop infinito de download/crash/reboot. Sem slot B
+  // de verdade, nao ha update seguro possivel: pula.
+  const esp_partition_t *next = esp_ota_get_next_update_partition(NULL);
+  const esp_partition_t *running = esp_ota_get_running_partition();
+  if (next == NULL || next == running) {
+    Serial.println("[OTA] Sem particao A/B livre (tabela single-app?) - update pulado");
+    return false;
+  }
+
   Serial.printf("[OTA] Heap livre antes do download: %u bytes\n", ESP.getFreeHeap());
 
   WiFiClientSecure client;

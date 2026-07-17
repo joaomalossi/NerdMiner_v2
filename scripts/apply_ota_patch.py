@@ -64,6 +64,25 @@ def patch_platformio_ini(path: Path):
             1,
         )
 
+    # Tabela dual-app no env do devkit: o self-OTA precisa de slot A/B - gravar
+    # por cima da particao em execucao (huge_app.csv, single-app) crasha o chip.
+    # So o bloco [env:ESP32-devKitv1] e alterado (demais envs ficam como estao).
+    env_anchor = "[env:ESP32-devKitv1]"
+    idx = text.find(env_anchor)
+    if idx < 0:
+        die(f"ancora '{env_anchor}' nao encontrada em {path}")
+    next_env = text.find("[env:", idx + len(env_anchor))
+    block = text[idx:next_env if next_env > 0 else len(text)]
+    if "min_spiffs.csv" not in block:
+        if "board_build.partitions = huge_app.csv" not in block:
+            die(f"'board_build.partitions = huge_app.csv' nao encontrado no bloco {env_anchor}")
+        new_block = block.replace(
+            "board_build.partitions = huge_app.csv",
+            "board_build.partitions = min_spiffs.csv",
+            1,
+        )
+        text = text[:idx] + new_block + (text[next_env:] if next_env > 0 else "")
+
     path.write_text(text)
     print(f"OK: {path} patched")
 
