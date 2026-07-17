@@ -12,6 +12,7 @@
 #include "mining.h"
 #include "monitor.h"
 #include "otaUpdater.h"
+#include "dashboard/dashboardServer.h"
 #include "drivers/displays/display.h"
 #include "drivers/storage/SDCard.h"
 #include "ShaTests/nerdSHA_HWTest.h"
@@ -192,6 +193,9 @@ void setup()
 
   /******** OTA AUTO-UPDATE SETUP *****/
   setup_ota_updater();
+
+  /******** DASHBOARD EMBUTIDO (fork) *****/
+  setup_dashboard_server();
 }
 
 void app_error_fault_handler(void *arg) {
