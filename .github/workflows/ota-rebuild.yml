@@ -56,6 +56,11 @@ jobs:
         if: steps.check.outputs.exists == 'false'
         run: pip install platformio
 
+      - name: Testes nativos do dashboard
+        if: steps.check.outputs.exists == 'false'
+        working-directory: upstream-src
+        run: pio test -e native
+
       - name: Compilar firmware (ESP32-devKitv1)
         if: steps.check.outputs.exists == 'false'
         working-directory: upstream-src
