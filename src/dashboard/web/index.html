@@ -23,6 +23,7 @@ h1 span { color:var(--accent); }
 .hr small { font-size:1rem; font-weight:400; color:var(--dim); }
 .offmsg { color:var(--bad); font-size:.9rem; margin:8px 0; display:none; }
 .card.offline .offmsg { display:block; }
+.chart { width:100%; height:56px; margin-top:10px; display:block; }
 .grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 14px; margin-top:12px; font-size:.85rem; }
 .grid div { display:flex; justify-content:space-between; gap:8px; border-bottom:1px solid var(--border); padding:3px 0; }
 .grid span:first-child { color:var(--dim); }
@@ -62,6 +63,7 @@ function cardHtml(id) {
     <h2><span class="dot"></span><span class="title">${id}</span></h2>
     <div class="hr"><span class="val">—</span> <small>KH/s</small></div>
     <div class="offmsg">sem resposta — placa offline ou fora da rede</div>
+    <canvas class="chart" height="56"></canvas>
     <div class="grid">
       <div><span>Shares</span><span data-f="shares">—</span></div>
       <div><span>Best diff</span><span data-f="bestDiff">—</span></div>
@@ -136,9 +138,41 @@ async function pollPool() {
   setTimeout(pollPool, 60000);
 }
 
+// Gráfico das últimas 24h (uma amostra de hashrate por minuto, vinda do /api/history)
+function drawChart(id, data) {
+  const cv = document.getElementById("card-" + id).querySelector("canvas");
+  const w = cv.clientWidth || 300;
+  cv.width = w;
+  const hgt = cv.height;
+  const ctx = cv.getContext("2d");
+  ctx.clearRect(0, 0, w, hgt);
+  if (!data.length) return;
+  const max = Math.max(...data, 1);
+  ctx.beginPath();
+  data.forEach((v, i) => {
+    const x = i / Math.max(data.length - 1, 1) * (w - 2) + 1;
+    const y = hgt - 2 - (v / max) * (hgt - 6);
+    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+  });
+  ctx.strokeStyle = "#f0883e";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+}
+
+async function pollHistory() {
+  for (const b of boards) {
+    try {
+      const r = await fetchTimeout(`http://${b}/api/history`, TIMEOUT_MS);
+      drawChart(b, await r.json());
+    } catch (e) { /* placa offline: gráfico fica vazio */ }
+  }
+  setTimeout(pollHistory, 60000);
+}
+
 poll();
 setInterval(poll, POLL_MS);
 pollPool();
+pollHistory();
 </script>
 </body>
 </html>

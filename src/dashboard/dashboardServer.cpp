@@ -22,6 +22,7 @@ static WebServer s_server(80);
 // elapsedKHs/mElapsed do ciclo de tela): delta de totalKHashes numa janela
 // própria, sem tocar no estado do monitor.
 static double s_hashRateKHs = 0.0;
+static HashrateHistory s_history;
 
 static void sampleHashrate() {
     static uint32_t lastKHashes = 0;
@@ -38,6 +39,12 @@ static void sampleHashrate() {
         s_hashRateKHs = (double)(kh - lastKHashes) / dtSec;
         lastKHashes = kh;
         lastUs = nowUs;
+    }
+
+    static int64_t lastHistoryUs = 0;
+    if (nowUs - lastHistoryUs >= 60LL * 1000000LL) {
+        if (lastHistoryUs != 0) history_add(s_history, s_hashRateKHs);
+        lastHistoryUs = nowUs;
     }
 }
 
@@ -64,6 +71,7 @@ static void handleStats() {
 }
 
 static void dashboardTask(void *pvParameters) {
+    history_init(s_history);
     while (WiFi.status() != WL_CONNECTED) {
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
@@ -88,6 +96,10 @@ static void dashboardTask(void *pvParameters) {
                         DASHBOARD_PAGE_GZ_LEN);
     });
     s_server.on("/api/stats", HTTP_GET, handleStats);
+    s_server.on("/api/history", HTTP_GET, []() {
+        s_server.sendHeader("Access-Control-Allow-Origin", "*");
+        s_server.send(200, "application/json", history_json(s_history).c_str());
+    });
     s_server.onNotFound([]() {
         s_server.sendHeader("Access-Control-Allow-Origin", "*");
         s_server.send(404, "text/plain", "not found");

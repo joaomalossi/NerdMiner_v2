@@ -28,4 +28,17 @@ typedef struct {
 
 std::string dashboard_stats_json(const DashboardStats& s);
 
+// Histórico de hashrate: 24h de amostras de 1 minuto (ring buffer em RAM).
+#define HISTORY_CAPACITY 1440
+
+typedef struct {
+    unsigned short samples[HISTORY_CAPACITY]; // KH/s arredondado
+    int count;
+    int head; // próxima posição de escrita
+} HashrateHistory;
+
+void history_init(HashrateHistory& h);
+void history_add(HashrateHistory& h, double kHs);
+std::string history_json(const HashrateHistory& h);
+
 #endif // DASHBOARD_CORE_H

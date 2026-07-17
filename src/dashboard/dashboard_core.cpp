@@ -22,6 +22,30 @@ std::string dashboard_stats_json(const DashboardStats& s) {
     return std::string(buf);
 }
 
+void history_init(HashrateHistory& h) {
+    h.count = 0;
+    h.head = 0;
+}
+
+void history_add(HashrateHistory& h, double kHs) {
+    h.samples[h.head] = (unsigned short)(kHs + 0.5);
+    h.head = (h.head + 1) % HISTORY_CAPACITY;
+    if (h.count < HISTORY_CAPACITY) h.count++;
+}
+
+std::string history_json(const HashrateHistory& h) {
+    std::string out = "[";
+    int start = (h.head - h.count + HISTORY_CAPACITY) % HISTORY_CAPACITY;
+    for (int i = 0; i < h.count; i++) {
+        if (i) out += ",";
+        char buf[8];
+        snprintf(buf, sizeof(buf), "%u", h.samples[(start + i) % HISTORY_CAPACITY]);
+        out += buf;
+    }
+    out += "]";
+    return out;
+}
+
 const char* dashboard_hostname(int stratumPort) {
     if (stratumPort == PPLNS_PORT || stratumPort == PPLNS_TLS_PORT)
         return "nerdminer-shared";

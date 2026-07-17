@@ -70,6 +70,35 @@ void test_stats_json_carries_btc_address(void) {
                      != std::string::npos);
 }
 
+// Histórico de hashrate: ring buffer de 24h (1440 amostras de 1min) exposto
+// em /api/history como array JSON do mais antigo pro mais novo.
+void test_history_empty_serializes_as_empty_array(void) {
+    HashrateHistory h;
+    history_init(h);
+    TEST_ASSERT_EQUAL_STRING("[]", history_json(h).c_str());
+}
+
+void test_history_lists_samples_oldest_first(void) {
+    HashrateHistory h;
+    history_init(h);
+    history_add(h, 350.4);
+    history_add(h, 355.0);
+    history_add(h, 340.6);
+    TEST_ASSERT_EQUAL_STRING("[350,355,341]", history_json(h).c_str());
+}
+
+void test_history_wraps_dropping_oldest(void) {
+    HashrateHistory h;
+    history_init(h);
+    for (int i = 0; i < HISTORY_CAPACITY + 2; i++) history_add(h, 100.0 + i);
+    std::string json = history_json(h);
+    TEST_ASSERT_TRUE(json.rfind("[102,", 0) == 0);   // 2 mais antigas caíram
+    TEST_ASSERT_TRUE(json.find(",1541]") != std::string::npos); // mais nova no fim
+    int commas = 0;
+    for (char c : json) if (c == ',') commas++;
+    TEST_ASSERT_EQUAL_INT(HISTORY_CAPACITY - 1, commas); // tamanho fixo em 1440
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_hostname_shared_for_pplns_ports);
@@ -78,5 +107,8 @@ int main(int, char**) {
     RUN_TEST(test_stats_json_mode_shared_on_pplns_port);
     RUN_TEST(test_stats_json_carries_diagnostic_fields);
     RUN_TEST(test_stats_json_carries_btc_address);
+    RUN_TEST(test_history_empty_serializes_as_empty_array);
+    RUN_TEST(test_history_lists_samples_oldest_first);
+    RUN_TEST(test_history_wraps_dropping_oldest);
     return UNITY_END();
 }
