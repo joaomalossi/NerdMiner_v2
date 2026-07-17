@@ -60,6 +60,16 @@ void test_stats_json_carries_diagnostic_fields(void) {
     TEST_ASSERT_TRUE(json.find("\"tempC\":47.8") != std::string::npos);
 }
 
+// A página precisa do endereço de payout pra consultar a conta na Public Pool.
+void test_stats_json_carries_btc_address(void) {
+    DashboardStats s{};
+    s.port = 21496;
+    s.btcAddress = "bc1qdp3m0m2hwztvlz2gcjq2zqmqegp33r694832cz";
+    std::string json = dashboard_stats_json(s);
+    TEST_ASSERT_TRUE(json.find("\"btcAddress\":\"bc1qdp3m0m2hwztvlz2gcjq2zqmqegp33r694832cz\"")
+                     != std::string::npos);
+}
+
 int main(int, char**) {
     UNITY_BEGIN();
     RUN_TEST(test_hostname_shared_for_pplns_ports);
@@ -67,5 +77,6 @@ int main(int, char**) {
     RUN_TEST(test_stats_json_carries_live_values_and_mode);
     RUN_TEST(test_stats_json_mode_shared_on_pplns_port);
     RUN_TEST(test_stats_json_carries_diagnostic_fields);
+    RUN_TEST(test_stats_json_carries_btc_address);
     return UNITY_END();
 }

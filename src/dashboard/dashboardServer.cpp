@@ -56,6 +56,7 @@ static void handleStats() {
     s.rssi = WiFi.RSSI();
     s.freeHeap = ESP.getFreeHeap();
     s.tempC = temperatureRead();
+    s.btcAddress = Settings.BtcWallet;
 
     std::string json = dashboard_stats_json(s);
     s_server.sendHeader("Access-Control-Allow-Origin", "*");

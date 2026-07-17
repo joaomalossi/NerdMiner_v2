@@ -23,6 +23,7 @@ typedef struct {
     int rssi;
     unsigned long freeHeap;
     double tempC;
+    std::string btcAddress;
 } DashboardStats;
 
 std::string dashboard_stats_json(const DashboardStats& s);

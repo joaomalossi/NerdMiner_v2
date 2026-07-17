@@ -12,11 +12,13 @@ std::string dashboard_stats_json(const DashboardStats& s) {
              "{\"mode\":\"%s\",\"pool\":\"%s\",\"port\":%d,"
              "\"hashRateKHs\":%.1f,\"shares\":%lu,"
              "\"bestDiff\":\"%s\",\"templates\":%lu,\"uptimeSeconds\":%lu,"
-             "\"version\":\"%s\",\"rssi\":%d,\"freeHeap\":%lu,\"tempC\":%.1f}",
+             "\"version\":\"%s\",\"rssi\":%d,\"freeHeap\":%lu,\"tempC\":%.1f,"
+             "\"btcAddress\":\"%s\"}",
              is_pplns_port(s.port) ? "shared" : "solo",
              s.pool.c_str(), s.port, s.hashRateKHs, s.shares,
              s.bestDiff.c_str(), s.templates, s.uptimeSeconds,
-             s.version.c_str(), s.rssi, s.freeHeap, s.tempC);
+             s.version.c_str(), s.rssi, s.freeHeap, s.tempC,
+             s.btcAddress.c_str());
     return std::string(buf);
 }
 

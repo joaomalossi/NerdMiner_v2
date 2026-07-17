@@ -32,6 +32,15 @@ footer { margin-top:18px; color:var(--dim); font-size:.75rem; }
 <body>
 <h1><span>⛏</span> NerdMiner Dashboard</h1>
 <div id="cards"></div>
+<div class="card" id="pool" style="margin-top:16px">
+  <h2><span class="dot" id="pool-dot"></span>Conta na Public Pool</h2>
+  <div class="grid">
+    <div><span>Shares aceitos (total)</span><span data-p="totalShares">—</span></div>
+    <div><span>Best diff (histórica)</span><span data-p="bestDiff">—</span></div>
+    <div><span>Último share</span><span data-p="lastShare">—</span></div>
+    <div><span>Hashrate (última hora)</span><span data-p="hrHour">—</span></div>
+  </div>
+</div>
 <footer id="foot"></footer>
 <script>
 "use strict";
@@ -89,21 +98,47 @@ function renderOffline(id) {
   c.classList.add("offline"); c.classList.remove("online");
 }
 
-const boards = [location.host];
+// As duas placas conhecidas; acessando por IP (sem mDNS), a própria vira um card extra.
+const boards = ["nerdminer-solo.local", "nerdminer-shared.local"];
+if (!boards.includes(location.host)) boards.unshift(location.host);
 const cardsEl = document.getElementById("cards");
 boards.forEach(b => cardsEl.insertAdjacentHTML("beforeend", cardHtml(b)));
+
+let btcAddress = null;
 
 async function poll() {
   for (const b of boards) {
     try {
       const r = await fetchTimeout(`http://${b}/api/stats`, TIMEOUT_MS);
-      renderStats(b, await r.json());
+      const s = await r.json();
+      renderStats(b, s);
+      if (s.btcAddress) btcAddress = s.btcAddress;
     } catch (e) { renderOffline(b); }
   }
   document.getElementById("foot").textContent = "atualizado " + new Date().toLocaleTimeString();
 }
+
+const POOL_API = "https://public-pool.io:40557/api/client/";
+async function pollPool() {
+  const el = document.getElementById("pool");
+  if (!btcAddress) { setTimeout(pollPool, 5000); return; }
+  try {
+    const r = await fetchTimeout(POOL_API + btcAddress, 10000);
+    const d = await r.json();
+    const a = d.accounting || {};
+    const f = (n, v) => el.querySelector(`[data-p="${n}"]`).textContent = v;
+    f("totalShares", a.totalAcceptedShares ?? "—");
+    f("bestDiff", Number(d.bestDifficulty).toFixed(2));
+    f("lastShare", a.latestShareAt ? new Date(a.latestShareAt).toLocaleString() : "—");
+    f("hrHour", a.hashRateLastHour ? (a.hashRateLastHour/1000).toFixed(0) + " KH/s" : "0");
+    el.classList.add("online"); el.classList.remove("offline");
+  } catch (e) { el.classList.add("offline"); el.classList.remove("online"); }
+  setTimeout(pollPool, 60000);
+}
+
 poll();
 setInterval(poll, POLL_MS);
+pollPool();
 </script>
 </body>
 </html>
