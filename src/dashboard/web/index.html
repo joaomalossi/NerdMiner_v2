@@ -29,7 +29,7 @@ h1 span { color:var(--accent); }
 .restart:hover { border-color:var(--bad); color:var(--bad); }
 .grid { display:grid; grid-template-columns:1fr 1fr; gap:6px 14px; margin-top:12px; font-size:.85rem; }
 .grid div { display:flex; justify-content:space-between; gap:8px; border-bottom:1px solid var(--border); padding:3px 0; }
-.grid span:first-child { color:var(--dim); }
+.grid span:first-child { color:var(--dim); cursor:help; text-decoration:underline dotted; text-underline-offset:3px; text-decoration-color:#3a4250; }
 footer { margin-top:18px; color:var(--dim); font-size:.75rem; }
 </style>
 </head>
@@ -37,12 +37,12 @@ footer { margin-top:18px; color:var(--dim); font-size:.75rem; }
 <h1><span>⛏</span> NerdMiner Dashboard</h1>
 <div id="cards"></div>
 <div class="card" id="pool" style="margin-top:16px">
-  <h2><span class="dot" id="pool-dot"></span>Conta na Public Pool</h2>
+  <h2 title="Dados da conta inteira na Public Pool (as duas placas somadas, mesmo endereço de payout). Atualiza a cada 60s."><span class="dot" id="pool-dot"></span>Conta na Public Pool</h2>
   <div class="grid">
-    <div><span>Shares aceitos (total)</span><span data-p="totalShares">—</span></div>
-    <div><span>Best diff (histórica)</span><span data-p="bestDiff">—</span></div>
-    <div><span>Último share</span><span data-p="lastShare">—</span></div>
-    <div><span>Hashrate (última hora)</span><span data-p="hrHour">—</span></div>
+    <div><span title="Total de shares que a pool já aceitou da conta, desde sempre (as duas placas juntas).">Shares aceitos (total)</span><span data-p="totalShares">—</span></div>
+    <div><span title="Recorde histórico de dificuldade da conta na pool — o mais perto que já chegamos de um bloco.">Best diff (histórica)</span><span data-p="bestDiff">—</span></div>
+    <div><span title="Quando a pool aceitou o último share da conta. Intervalos de horas são normais (~1 share a cada 3,4h por placa).">Último share</span><span data-p="lastShare">—</span></div>
+    <div><span title="Hashrate estimado pela pool a partir dos shares da última hora. Como os shares são raros, 0 na maior parte do tempo é NORMAL — não significa placa offline (as placas ao lado são a fonte confiável).">Hashrate (última hora)</span><span data-p="hrHour">—</span></div>
   </div>
 </div>
 <footer id="foot"></footer>
@@ -63,21 +63,21 @@ function fmtUptime(s) {
 
 function cardHtml(id) {
   return `<div class="card" id="card-${id}">
-    <h2><span class="dot"></span><span class="title">${id}</span></h2>
-    <div class="hr"><span class="val">—</span> <small>KH/s</small></div>
+    <h2><span class="dot" title="Verde: placa respondendo. Vermelho: sem resposta há mais de um ciclo (~7s) — offline, travada ou fora da rede."></span><span class="title">${id}</span></h2>
+    <div class="hr" title="Velocidade de mineração ao vivo: tentativas de hash por segundo. O normal deste ESP32 é ~350–355 KH/s. Atualiza a cada 7s (medição em janela de 10s na placa)."><span class="val">—</span> <small>KH/s</small></div>
     <div class="offmsg">sem resposta — placa offline ou fora da rede</div>
-    <canvas class="chart" height="56"></canvas>
+    <canvas class="chart" height="56" title="Hashrate das últimas 24h — 1 ponto por minuto, guardado na RAM da placa. Zera quando a placa reinicia (gráfico curto = reboot recente)."></canvas>
     <button class="restart" data-b="${id}">reiniciar placa</button>
     <div class="grid">
-      <div><span>Shares</span><span data-f="shares">—</span></div>
-      <div><span>Best diff</span><span data-f="bestDiff">—</span></div>
-      <div><span>Templates</span><span data-f="templates">—</span></div>
-      <div><span>Uptime</span><span data-f="uptime">—</span></div>
-      <div><span>Pool</span><span data-f="pool">—</span></div>
-      <div><span>Firmware</span><span data-f="version">—</span></div>
-      <div><span>Wi-Fi</span><span data-f="rssi">—</span></div>
-      <div><span>Heap livre</span><span data-f="heap">—</span></div>
-      <div><span>Temp</span><span data-f="temp">—</span></div>
+      <div><span title="Provas de trabalho aceitas pela pool desde o último reboot. Com ~355 KH/s e dificuldade 1, o esperado é ~1 share a cada 3,4 horas — zero por longos períodos é normal.">Shares</span><span data-f="shares">—</span></div>
+      <div><span title="Maior dificuldade de hash que a placa encontrou desde o reboot (sorte pura). Pra achar um bloco de verdade precisaria de ~127 trilhões.">Best diff</span><span data-f="bestDiff">—</span></div>
+      <div><span title="Modelos de bloco novos recebidos da pool (mining.notify). Subindo constantemente = conexão com a pool viva e saudável.">Templates</span><span data-f="templates">—</span></div>
+      <div><span title="Tempo desde o último reboot da placa. Zerou sem você pedir = queda de energia, crash ou update OTA.">Uptime</span><span data-f="uptime">—</span></div>
+      <div><span title="Endereço:porta de stratum configurados. 13333 = shared/PPLNS (recompensa dividida proporcional); 21496 ou 3333 = solo (100% do bloco se achar).">Pool</span><span data-f="pool">—</span></div>
+      <div><span title="Versão do firmware instalada. As placas se atualizam sozinhas (self-OTA A/B) quando sai release nova no fork.">Firmware</span><span data-f="version">—</span></div>
+      <div><span title="Potência do sinal Wi-Fi (RSSI). Mais perto de 0 é melhor: até -67 dBm ótimo, -70s aceitável, abaixo de -80 instável (downloads de OTA podem falhar).">Wi-Fi</span><span data-f="rssi">—</span></div>
+      <div><span title="Memória RAM livre do ESP32. O valor importa menos que a estabilidade: caindo sem parar = vazamento de memória.">Heap livre</span><span data-f="heap">—</span></div>
+      <div><span title="Temperatura interna do chip (sensor pouco preciso — a tendência importa mais que o valor absoluto). 50–60 °C minerando é normal.">Temp</span><span data-f="temp">—</span></div>
     </div>
   </div>`;
 }
